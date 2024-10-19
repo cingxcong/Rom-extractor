@@ -76,25 +76,25 @@ jobs:
                 python3 vdat2img.py Unzip/vendor.transfer.list Unzip/vendor.new.dat vendor.img || exit 1
               fi
 
-       # Step to copy recovery.img if it exists
-       - name: Copy recovery.img
-         working-directory: Rom/Unzip
-         run: |
-              if [ -f "recovery.img" ]; then
-                cp recovery.img ../artifacts/
-              fi
-
-       # Step to upload resulting images as artifacts
-       - name: Upload Images as Artifacts
+       # Step to create artifacts directory and copy images
+       - name: Prepare artifacts
          run: |
               mkdir -p artifacts
-              cp Unzip/boot.img artifacts/
-              cp Unzip/system.img artifacts/
-              cp Unzip/vendor.img artifacts/
-              cp Unzip/recovery.img artifacts/ || true  # Ignore if recovery.img does not exist
+              # List files in Unzip directory for debugging
+              echo "Files in Unzip directory:"
+              ls Unzip || echo "No files found in Unzip directory."
               
+              # Copy images to artifacts
+              cp Unzip/boot.img artifacts/ || echo "boot.img not found."
+              cp Unzip/system.img artifacts/ || echo "system.img not found."
+              cp Unzip/vendor.img artifacts/ || echo "vendor.img not found."
+              cp Unzip/recovery.img artifacts/ || echo "recovery.img not found."
+
+       # Step to upload resulting images as artifacts
        - name: Upload artifacts
          uses: actions/upload-artifact@v3  # Updated to latest version
          with:
            name: extracted-images
            path: artifacts/*
+           # Ensure that system.img is always uploaded
+           if-no-files-found: error
