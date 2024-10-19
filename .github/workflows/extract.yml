@@ -21,7 +21,7 @@ jobs:
 
        - name: EnvSetup
          run: |
-              sudo apt install python3 brotli aria2 curl -y
+              sudo apt install python3 aria2 curl -y
               mkdir -p Rom/Unzip
 
        - name: Install dependencies
@@ -61,14 +61,7 @@ jobs:
                 ./payload-dumper-go payload.bin
               fi
 
-       # Step to convert .br files to .dat
-       - name: Convert .br to .dat
-         working-directory: Rom/Unzip
-         run: |
-              brotli -d system.new.dat.br || exit 1
-              brotli -d vendor.new.dat.br || exit 1
-
-       # Step to extract .img files from new.dat files
+       # Step to extract .img files from system.new.dat and vendor.new.dat
        - name: Extract .img from new.dat
          working-directory: Rom
          run: |
@@ -82,7 +75,7 @@ jobs:
               if [ -f "Unzip/vendor.transfer.list" ] && [ -f "Unzip/vendor.new.dat" ]; then
                 python3 vdat2img.py Unzip/vendor.transfer.list Unzip/vendor.new.dat vendor.img || exit 1
               fi
-       
+
        # Step to upload resulting images
        - name: Upload
          working-directory: Rom
