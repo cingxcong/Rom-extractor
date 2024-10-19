@@ -1,12 +1,12 @@
 name: Rom-Extractor
- 
+
 on:
   workflow_dispatch:
     inputs:
       ROM_URL:
-        description: 'ROM_URL'
+        description: 'ROM/Firmware URL'
         required: true
-    
+
 defaults:
   run:
     shell: bash
@@ -16,56 +16,79 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-       - name: Checkouts
+       - name: Checkout
          uses: actions/checkout@v2
-   
+
        - name: EnvSetup
          run: |
               sudo apt install python3 brotli aria2 curl -y
-              mkdir Rom
-              mkdir Rom/Unzip
+              mkdir -p Rom/Unzip
 
-       - name: Download Rom
+       - name: Install dependencies
+         run: |
+              sudo apt-get update && sudo apt-get install -y xz-utils unzip git python3 golang
+
+       # Step to download the ROM/Firmware
+       - name: Download ROM/Firmware
          working-directory: Rom
          run: |
-              aria2c ${{ github.event.inputs.ROM_URL }}
+              aria2c ${{ github.event.inputs.ROM_URL }} || exit 1
 
-       - name: Unzip Rom
+       # Step to unzip the ROM/Firmware
+       - name: Unzip ROM/Firmware
          working-directory: Rom
          run: |
-              unzip *.zip -d Unzip
+              unzip *.zip -d Unzip || exit 1
 
-       - name: SetupVars
-         working-directory: Rom
-         run: |
-              git config --global user.name "shazuxD"
-              git config --global user.email "shazuxd7@gmail.com"
-              echo "${{ secrets.BOT_TOKEN }}" > .tg_token
-              echo "${{ secrets.CHAT_ID }}" > .tg_chat
+       # Clone payload-dumper-go repository
+       - name: Clone payload-dumper-go
+         run: git clone https://github.com/ssut/payload-dumper-go.git
 
-       - name: clone tools
-         working-directory: Rom
+       # Build the payload-dumper-go binary
+       - name: Build payload-dumper-go
          run: |
-              wget https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
-              wget https://raw.githubusercontent.com/danielmmmm/dat2img/refs/heads/master/vdat2img.py
-        
-       - name: convert br to dat
+              cd payload-dumper-go
+              go build -o payload-dumper-go .
+              if [ ! -f "payload-dumper-go" ]; then
+                echo "payload-dumper-go build failed"
+                exit 1
+              fi
+
+       # Extract partitions from payload.bin if found in the firmware
+       - name: Extract partitions from payload.bin
+         run: |
+              if [ -f "payload.bin" ]; then
+                ./payload-dumper-go payload.bin
+              fi
+
+       # Step to convert .br files to .dat
+       - name: Convert .br to .dat
          working-directory: Rom/Unzip
          run: |
-              brotli -d system.new.dat.br
-              brotli -d vendor.new.dat.br
-       
-       - name: Convert new.dat to img
+              brotli -d system.new.dat.br || exit 1
+              brotli -d vendor.new.dat.br || exit 1
+
+       # Step to extract .img files from new.dat files
+       - name: Extract .img from new.dat
          working-directory: Rom
          run: |
-              python3 sdat2img.py Unzip/system.transfer.list Unzip/system.new.dat system.img
-              python3 vdat2img.py Unzip/vendor.transfer.list Unzip/vendor.new.dat vendor.img
+              # Download sdat2img.py for converting .dat to .img
+              wget https://raw.githubusercontent.com/xpirt/sdat2img/master/sdat2img.py
+              
+              # Ensure the extracted files exist before converting
+              if [ -f "Unzip/system.transfer.list" ] && [ -f "Unzip/system.new.dat" ]; then
+                python3 sdat2img.py Unzip/system.transfer.list Unzip/system.new.dat system.img || exit 1
+              fi
+              if [ -f "Unzip/vendor.transfer.list" ] && [ -f "Unzip/vendor.new.dat" ]; then
+                python3 vdat2img.py Unzip/vendor.transfer.list Unzip/vendor.new.dat vendor.img || exit 1
+              fi
        
+       # Step to upload resulting images
        - name: Upload
          working-directory: Rom
          run: |
               curl -sL https://git.io/file-transfer | sh
               cp Unzip/boot.img ../
-              ./transfer wet boot*.img
-              ./transfer wet system*.img
-              ./transfer wet vendor*.img
+              ./transfer wet boot*.img || exit 1
+              ./transfer wet system*.img || exit 1
+              ./transfer wet vendor*.img || exit 1
