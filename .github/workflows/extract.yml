@@ -76,12 +76,16 @@ jobs:
                 python3 vdat2img.py Unzip/vendor.transfer.list Unzip/vendor.new.dat vendor.img || exit 1
               fi
 
-       # Step to upload resulting images
-       - name: Upload
-         working-directory: Rom
+       # Step to upload resulting images as artifacts
+       - name: Upload Images as Artifacts
          run: |
-              curl -sL https://git.io/file-transfer | sh
-              cp Unzip/boot.img ../
-              ./transfer wet boot*.img || exit 1
-              ./transfer wet system*.img || exit 1
-              ./transfer wet vendor*.img || exit 1
+              mkdir -p artifacts
+              cp Unzip/boot.img artifacts/
+              cp Unzip/system.img artifacts/
+              cp Unzip/vendor.img artifacts/
+              
+       - name: Upload artifacts
+         uses: actions/upload-artifact@v2
+         with:
+           name: extracted-images
+           path: artifacts/*
